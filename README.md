@@ -23,7 +23,7 @@ make clean
 ```bash
 sudo ./scanner xx.xx.xx.xx
 ```
-> 需要给root权限，应为会删除某些奇怪的东西
+> 需要给root权限，需要删除某些奇怪的东西
 **********************
 ## BUG
 1. 扫一些机器时候会提示，添加到/etc/hosts里
