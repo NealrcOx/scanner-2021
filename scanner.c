@@ -47,6 +47,7 @@ int main(int argc, char * argv[])
   int j;
   int len =strlen(*(argv + 1));
 
+//这个循环负责处理输入，获得要扫瞄的局域网前缀，前24位
   for(int j = 0 , flag = 0; j < len ; j++)
   {
 
@@ -58,8 +59,8 @@ int main(int argc, char * argv[])
       flag++;
       if(flag == 3)
       {
-        ipAddrPre[j] = '.';
-        ipAddrPre[j + 1] = '\0';
+        ipAddrPre[j] = '.';       //上面的处理会不停在最后一 . 所以要加上
+        ipAddrPre[j + 1] = '\0';  //是按字符串处理的，所以要加上\0
         break;
       }
     }
@@ -121,6 +122,7 @@ void * CheckDestOpenPort(void * argv)
   in_port_t destPort;
   unsigned int startPort = DEFAULT_START_PORT;
 	unsigned int overPort = DEFAULT_END_PORT;
+
   int port_flag = 0;  //端口开关标志，0为关闭，非0为打开
 
   char *destIP = (char *)argv;
@@ -195,8 +197,8 @@ void * CheckDestOpenPort(void * argv)
         memset(buf, 0, sizeof(buf));
          memset(logpath, 0, sizeof(logpath));
 
-        strcat(logpath, "./scanlog/");  //写入日志路径
-         strcat(logpath,destIP);     //写入当前Ip
+            strcat(logpath, "./scanlog/");  //写入日志路径
+              strcat(logpath,destIP);     //写入当前Ip
 
         fd = open(logpath, O_RDWR | O_CREAT | O_TRUNC, 0777);
         if(fd == -1)
@@ -283,7 +285,7 @@ void * CheckDestOpenPort(void * argv)
       strcat(buf,"\n");
       write(fd, buf, strlen(buf));
 
-      close(sock);  //每建立一个套介子，最后都要关闭，否则系统一直占用
+      close(sock);  //每建立一个套接字，最后都要关闭，否则系统一直占用
     }
 
     //统计整个过程的时间花费
@@ -291,10 +293,106 @@ void * CheckDestOpenPort(void * argv)
     timeCost = TIME *(overTime.tv_sec - startTime.tv_sec) + overTime.tv_usec - startTime.tv_usec;
     //tv_sec 微秒，tv_usec毫秒
     timeCost /= 1000;
+    if(timeCost < 5000 && destPort == overPort)
+    {
+      memset(buf, 0, sizeof(buf));
+       memset(logpath, 0, sizeof(logpath));
+
+          strcat(logpath, "./scanlog/");  //写入日志路径
+            strcat(logpath,destIP);     //写入当前Ip
+
+      fd = open(logpath, O_RDWR | O_CREAT | O_TRUNC, 0777);
+      if(fd == -1)
+      {
+        perror("open");
+        return NULL;
+      }
+      //写入主机Ip
+      strcat(buf,"IP:");
+        strcat(buf,destIP);
+          strcat(buf,"\tHost is up!\n");
+            write(fd, buf, strlen(buf));
+
+      //写入主机名
+      memset(buf,0,sizeof(buf));
+      strcat(buf,"HostName:");
+
+      //创建honst entry结构体指针
+      struct hostent * hostEntPtr;
+      /*
+      #include <netdb.h>
+      #include <sys/socket.h>	/* for AF_INET
+      struct hostent *gethostbyaddr(const void *addr,socklen_t len, int type);
+      const void *addr：参数addr不是void*类型， 而是一个真正指向含有IPv4或IPv6地址的结构in_addr或in6_addr；
+      socklen_t len：第一个参数的结构大小，对于 IPv4地址为4,对于IPv6地址为16；
+      int family：AF_INET或AF_INET6；
+      */
+      hostEntPtr = gethostbyaddr((void *)&destAddr.sin_addr, 4 ,AF_INET);
+      //调用该函数访问该结构体
+      if(hostEntPtr == NULL)
+      {
+        printf("\ngethostnamebyaddr error for addr:%s\n",destIP);
+         printf("please add this ip and hostname into file:\"/etc/hosts\"\n");
+          strcat(buf,"Unknown");
+      }
+      else
+      {
+      /*  struct hostent
+          {
+             char * h_name; 		/ *主机的正式名称* /
+             char ** h_aliases; 	/ *主机的别名,一个主机可以有多个别名* /
+             int h_addrtype; 	/ *主机地址类型:IPV4-AF_INET* /
+             int h_length; 		/ *主机地址字节长度，对于IPv4是四字节，即32位* /
+             char ** h_addr_list; / *地址列表* /
+          }
+        */
+        strcat(buf, hostEntPtr->h_name);
+      }
+      strcat(buf, "\n");
+       write(fd, buf, strlen(buf));    //将缓冲中的数据写入sacnlog
+
+      //写入该次扫描日期
+      memset(buf, 0, sizeof(buf));
+       getTime(buf);
+        write(fd, buf, sizeof(buf));
+
+      //写入信息i栏 eg. port  status  serveice
+      memset(buf, 0, sizeof(buf));
+       strcat(buf, "port\tstatus\tservice\n");
+        write(fd, buf, sizeof(buf));
+    //}
+    //写入端口
+    memset(buf, 0, sizeof(buf));
+    //  sprintf(portStr, "%d", destPort);
+        //strcat(buf, portStr);
+          strcat(buf, "/tall port is closed !\t");
+    //eg: xxx tcp open
+    dest = getservbyport(htons(destPort), "tcp"); //访问/etc/hosts下的结构体，获取信息
+    if(!dest)
+    {
+      strcat(buf,"Unknown");
+    }
+    else
+    {
+      strcat(buf,dest->s_name);
+      strcat(buf,"  ");
+      int i = -1;
+      for(i=0;dest->s_aliases[i];i++)
+      {
+        strcat(buf,dest->s_aliases[i]);
+        strcat(buf,"  ");
+      }
+    }
+    strcat(buf,"\n");
+    write(fd, buf, strlen(buf));
+
+    close(sock);
+      return;
+    }
     if(timeCost > 5000)
     {
       //该扫描时间如果大于5S，认为该主机down
-      break;   //结束循环，退出扫描
+          break;   //结束循环，退出扫描
     }
 }
 // 记录对该Ip的扫描时间
