@@ -163,6 +163,8 @@ void * CheckDestOpenPort(void * argv)
   char buf[255] = {0};    //写入缓冲
   char portStr[81] = {0};  //端口
 
+  int setflag = 0;
+
   //开始从0～1024端口扫描
   for(destPort = startPort ; destPort <= overPort ; destPort++)
   {
@@ -177,7 +179,8 @@ void * CheckDestOpenPort(void * argv)
 
   //establish the conection to the dest server
   connectStatus = connect(sock, (struct sockaddr *) &destAddr, sizeof(destAddr));
-    if(connectStatus != 0)
+
+  if(connectStatus != 0 )
     {
       //connect()失败；
       close(sock);
